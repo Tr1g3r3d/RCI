@@ -1,6 +1,6 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-int client_init(char * ipaddr, unsigned int port);
+int client_init(char * ipaddr, char port[]);
 
 #endif
