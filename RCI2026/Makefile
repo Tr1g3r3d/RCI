@@ -1,7 +1,7 @@
 PROJECT_NAME := OWR #target file name
 
 CC := gcc #compiler
-CFLAGS := -g -Wall
+CFLAGS := -g -Wall -Wextra -Werror 
 
 FILES := $(wildcard src/*.c)
 HEADERS := $(wildcard headers/*.h)
