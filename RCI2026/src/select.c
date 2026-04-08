@@ -33,7 +33,7 @@ int select_event(t_nodeinfo *node)
     int out_fds = select(maxfd + 1, &inputs, NULL, NULL, NULL);
     if (out_fds < 0)
     {
-        fprintf(stderr, "[ERROR]: Select error! erro: %d\n", errno);
+        fprintf(stderr, "\n[ERROR]: Select error! erro: %d\n", errno);
         exit(1);
     }
 

@@ -5,6 +5,7 @@
 #include "../headers/structs.h"
 
 #define MAX(x, y) (x > y ? x : y)
+#define INF 999999
 
 /**
  * @brief Node inicialization
@@ -38,6 +39,8 @@ t_nodeinfo *node_init(char *ipaddr, char *port, char *reg_ipaddr, char *reg_port
     node->n_int = 0;
 
     node->net = -1;
+
+    node->monitoring = 0;
 
     return node;
 }
@@ -137,7 +140,11 @@ t_routing *create_rout(int dest, int neighbour)
 {
     t_routing *new_rout = (t_routing *)calloc(1, sizeof(t_routing));
     new_rout->dest = dest;
-    new_rout->neighbour = neighbour;
+    new_rout-> dist = 1;
+    new_rout->succ = neighbour;
+    new_rout->state = 0;
+    new_rout->succ_coord = -1;
+    new_rout->coord_list = NULL;
     new_rout->next_rout = NULL;
     return new_rout;
 }
@@ -169,7 +176,7 @@ void remove_rout(t_routing **head_ref, int id)
 
     while (curr != NULL)
     {
-        if (curr->dest == id || curr->neighbour == id)
+        if (curr->dest == id || curr->succ == id)
         {
             if (prev == NULL)
             {
@@ -203,6 +210,13 @@ void clearRoutList(t_routing *head)
     t_routing *next;
     while (current != NULL)
     {
+        t_coord *c = current->coord_list;
+        while (c != NULL)
+        {
+            t_coord *next_c = c->next_coord;
+            free(c);
+            c = next_c;
+        }
         next = current->next_rout;
         free(current);
         current = next;
@@ -222,7 +236,19 @@ int findRout(t_routing *head, int dest)
     while (current != NULL)
     {
         if (current->dest == dest)
-            return current->neighbour;
+            return current->succ;
+        current = current->next_rout;
+    }
+    return -1;
+}
+
+int findDist(t_routing *head, int dest)
+{
+    t_routing *current = head;
+    while (current != NULL)
+    {
+        if (current->dest == dest)
+            return current->dist;
         current = current->next_rout;
     }
     return -1;
@@ -236,27 +262,51 @@ int findRout(t_routing *head, int dest)
 void print_rout(t_routing *head)
 {
     printf("[INFO]: ==== EXPEDITION TABLE ====\n\n");
-    printf("           ___________________\n");
-    printf("          |         |         |\n");
-    printf("          | Destino | Vizinho |\n");
-    printf("          |_________|_________|\n");
+    printf("           _____________________________\n");
+    printf("          |         |         |         |\n");
+    printf("          | Destino | Vizinho |Distância|\n");
+    printf("          |_________|_________|_________|\n");
     if (head != NULL)
     {
         while (head != NULL)
         {
-            printf("          |         |         |\n");
-            printf("          |   %02d    |    %02d   |\n", head->dest, head->neighbour);
-            printf("          |_________|_________|\n");
+            printf("          |         |         |         |\n");
+            printf("          |   %02d    |    %02d   |    %02d   |\n", head->dest, head->succ, head->dist);
+            printf("          |_________|_________|_________\n");
             head = head->next_rout;
         }
         printf("\n");
     }
     else
     {
-        printf("          |                   |\n");
-        printf("          |     NO ROUTING    |\n");
-        printf("          |___________________|\n\n");
+        printf("          |                            |\n");
+        printf("          |          NO ROUTING        |\n");
+        printf("          |____________________________|\n\n");
     }
+}
+
+void print_dest_rout(t_routing *head, int dest)
+{
+    printf("[INFO]: ==== EXPEDITION TABLE ====\n\n");
+    printf("           _____________________________\n");
+    printf("          |         |         |         |\n");
+    printf("          | Destino | Vizinho |Distância|\n");
+    printf("          |_________|_________|_________|\n");
+    t_routing *current = head;
+    while (current != NULL)
+    {
+        if (current->dest == dest)
+        {
+            printf("          |         |         |         |\n");
+            printf("          |   %02d    |    %02d   |    %02d   |\n", current->dest, current->succ, (current->dist == INF) ? -1 : current->dist);
+            printf("          |_________|_________|_________|\n\n");
+            return;
+        }
+        current = current->next_rout;
+    }
+    printf("          |         |                   |\n");
+    printf("          |   %02d    |     NO ROUTING    |\n", dest);
+    printf("          |_________|___________________|\n\n");
 }
 
 /**
@@ -321,7 +371,7 @@ void remove_int(t_int **head_ref, unsigned int intr_id)
         previous = current;
         current = current->next_int;
     }
-    printf("[INFO]: Internal NODE not found in list\n");
+    printf("\n[INFO]: No connection found with NODE %02u\n\n", intr_id);
 }
 
 /**
@@ -367,14 +417,131 @@ int findIntSock(t_int *head, unsigned int id)
  */
 void print_int(t_int *head)
 {
-    printf("        Neighbors: ");
+    printf("\n[INFO]: ===== NEIGHBORS LIST ===== \n");
     if (head == NULL)
-        printf("\n");
+        printf("        No Neighbors\n");
     while (head != NULL)
     {
-        printf("%02u\n", head->int_id);
-        if (head->next_int != NULL)
-            printf("                  ");
+        printf("        Node  %02u\n", head->int_id);
         head = head->next_int;
     }
+    printf("\n");
+}
+
+t_routing *get_rout(t_routing *head, int dest)
+{
+    while (head != NULL)
+    {
+        if (head->dest == dest) return head;
+        head = head->next_rout;
+    }
+    return NULL;
+}
+
+t_coord *get_coord(t_coord *head, int neigh_id)
+{
+    while (head != NULL)
+    {
+        if (head->neigh_id == neigh_id) return head;
+        head = head->next_coord;
+    }
+    return NULL;
+}
+
+void set_coord_state(t_routing *r, int neigh_id, int state)
+{
+    if (r == NULL) return;
+
+    t_coord *c = get_coord(r->coord_list, neigh_id);
+    if (c != NULL)
+    {
+        c->coord_state = state;
+        return;
+    }
+
+    c = (t_coord *)calloc(1, sizeof(t_coord));
+    c->neigh_id = neigh_id;
+    c->coord_state = state;
+    c->next_coord = r->coord_list;
+    r->coord_list = c;
+}
+
+int get_coord_state(t_routing *r, int neigh_id)
+{
+    if (r == NULL) return 0;
+    t_coord *c = get_coord(r->coord_list, neigh_id);
+    return (c == NULL) ? 0 : c->coord_state;
+}
+
+int all_coords_zero(t_routing *r)
+{
+    if (r == NULL) return 1;
+
+    for (t_coord *c = r->coord_list; c != NULL; c = c->next_coord)
+    {
+        if (c->coord_state != 0) return 0;
+    }
+    return 1;
+}
+
+void remove_coord_from_all_routes(t_routing *head, int neigh_id)
+{
+    while (head != NULL)
+    {
+        set_coord_state(head, neigh_id, 0);
+        head = head->next_rout;
+    }
+}
+
+void set_route_succ(t_routing *head, int dest, int succ)
+{
+    t_routing *r = get_rout(head, dest);
+    if (r != NULL) r->succ = succ;
+}
+
+void set_route_state(t_routing *head, int dest, int state)
+{
+    t_routing *r = get_rout(head, dest);
+    if (r != NULL) r->state = state;
+}
+
+void set_route_succ_coord(t_routing *head, int dest, int succ_coord)
+{
+    t_routing *r = get_rout(head, dest);
+    if (r != NULL) r->succ_coord = succ_coord;
+}
+
+void print_coord_table(t_nodeinfo *node)
+{
+    printf("\n--- Coordination Table ---\n");
+
+    if (node->rout_list == NULL)
+    {
+        printf("Tabela vazia.\n");
+        return;
+    }
+
+    for (t_routing *r = node->rout_list; r != NULL; r = r->next_rout)
+    {
+        printf("Dest: %02d | State: %s | Succ: %02d | SuccCoord: %02d\n", r->dest, (r->state == 0) ? "EXP" : "COORD", r->succ, r->succ_coord);
+        printf("   coord[t,j]: ");
+
+        if (r->coord_list == NULL)
+        {
+            printf("(vazio)");
+        }
+        else
+        {
+            for (t_coord *c = r->coord_list; c != NULL; c = c->next_coord)
+            {
+                printf("[%02d:%d] ", c->neigh_id, c->coord_state);
+            }
+        }
+
+        printf("\n");
+    }
+
+    printf("--------------------------\n\n");
+
+    return;
 }

@@ -128,11 +128,15 @@ int establish_connection(t_nodeinfo *node, unsigned int id, char *ipaddr, char *
     int snd = send_tcp_message(sockfd, tcp_message);
     if (snd == -1)
         return -1;
+    
+    if(node->monitoring) printf("\r[INFO]: NEIGHBOR message sent to NODE %02d: %s\n", id, tcp_message);
 
     add_int(&node->int_list, id, sockfd);
     node->n_int++;
 
-    printf("[INFO]: Connection established successfully.\n");
+    sync_new_neighbor_routes(node, id);
+
+    printf("\n[INFO]: Connection established successfully.\n\n");
     return 0;
 }
 
@@ -269,6 +273,7 @@ int client_udp(t_nodeinfo *node, char *ipaddr, char *port, char *message, unsign
     }
     else if(strncmp(buffer, "REG ", 4) == 0)
     {
+        if(node->monitoring) printf("\n[INFO]: REG message received: %s\n", buffer);
         unsigned int net;
         char id[3] = "";
         sprintf(id, "%02d", node->self_id);
@@ -277,7 +282,7 @@ int client_udp(t_nodeinfo *node, char *ipaddr, char *port, char *message, unsign
         token = strtok(NULL, " ");
         if (strtoui(token) != tid)
         {
-            printf("[ERROR]: Wrong TID received!\n\tSent: %d - Received: %s\n\n", tid, token);
+            printf("\n[ERROR]: Wrong TID received!\n\tSent: %d - Received: %s\n\n", tid, token);
             return -1;
         }
         token = strtok(NULL, " ");
@@ -302,18 +307,19 @@ int client_udp(t_nodeinfo *node, char *ipaddr, char *port, char *message, unsign
         }
         else
         {
-            printf("[ERROR]: Error trying to join network! OP receveid: %u\n\n", op);
+            printf("\n[ERROR]: Error trying to join network! OP receveid: %u\n\n", op);
         }
     }
     else if(strncmp(buffer, "CONTACT ", 8) == 0)
     {
+        if(node->monitoring) printf("\n[INFO]: CONTACT message received: %s\n", buffer);
         unsigned int net, op, r_tid, id;
         char ipaddr[INET_ADDRSTRLEN], port[6];
 
         char *token = strtok(buffer, "\n");
         if(sscanf(token, "CONTACT %u %u %u %u %s %s", &r_tid, &op, &net, &id, ipaddr, port) != 6)
         {
-            fprintf(stderr, "[ERROR]: Failed to receive the right CONTACT message.\n");
+            fprintf(stderr, "\n[ERROR]: Failed to receive the right CONTACT message.\n\n");
             return -1;
         }
 
@@ -325,11 +331,11 @@ int client_udp(t_nodeinfo *node, char *ipaddr, char *port, char *message, unsign
         }
         else if (op == 2)
         {
-            printf("[INFO]: NODE %02u isn't registered in the network!\n\n", id);
+            printf("\n[INFO]: NODE %02u isn't registered in the network!\n\n", id);
         }
         else
         {
-            printf("[ERROR]: Error contacting NODE %02u! OP receveid: %u\n\n", id, op);
+            printf("\n[ERROR]: Error contacting NODE %02u! OP receveid: %u\n\n", id, op);
         }
 
     }
